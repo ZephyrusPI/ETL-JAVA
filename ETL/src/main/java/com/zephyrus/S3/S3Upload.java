@@ -1,0 +1,23 @@
+package com.zephyrus.S3;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
+import java.nio.file.Paths;
+
+public class S3Upload {
+
+    public static void uploadArquivo(String nomeBucket, String nomeArquivo, String origem) {
+        S3Client s3 = S3Config.getS3Client();
+
+        PutObjectRequest request = PutObjectRequest.builder()
+                .bucket(nomeBucket)
+                .key(nomeArquivo)
+                .build();
+
+        s3.putObject(request, RequestBody.fromFile(Paths.get(origem)));
+
+        System.out.println(" Upload concluído para o bucket: " + nomeBucket);
+    }
+}
+
