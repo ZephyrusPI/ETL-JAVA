@@ -1,4 +1,5 @@
 package com.zephyrus;
+import com.zephyrus.Jira.JiraService;
 import com.zephyrus.dao.ParametroDao;
 import com.zephyrus.model.Parametro;
 import org.apache.commons.csv.CSVFormat;
@@ -73,12 +74,11 @@ public class CsvProcessador {
         try {
             DateTimeFormatter formatoOriginal = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             LocalDateTime dateTime = LocalDateTime.parse(dataBruta, formatoOriginal);
-            return dateTime.toString(); // fica "2025-10-06T21:23:18"
+            return dateTime.toString();
         } catch (Exception e) {
-            return dataBruta; // caso erro, retorna como está
+            return dataBruta;
         }
     }
-    List<Parametro> parametros = ParametroDao.buscarParametros();
 
     public static void processarTrusted() {
         List<Parametro> parametros = ParametroDao.buscarParametros();

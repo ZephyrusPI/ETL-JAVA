@@ -17,11 +17,11 @@ import java.sql.Statement;
 public class Main {
     public static void main(String[] args) {
 
-        S3Download.downloadArquivo("bucketraw2510", "dadosGrupo.csv", "src\\main\\java\\com\\zephyrus\\Arquivos\\dadosRaw.csv");
-        CsvProcessador.processarRaw();
-        S3Upload.uploadArquivo("buckettrusted2510","dadosTrusted.csv","src\\main\\java\\com\\zephyrus\\Arquivos\\dadosTrusted.csv");
+       // S3Download.downloadArquivo("bucketraw2510", "dadosGrupo.csv", "src\\main\\java\\com\\zephyrus\\Arquivos\\dadosRaw.csv");
+        //CsvProcessador.processarRaw();
+        //S3Upload.uploadArquivo("buckettrusted2510","dadosTrusted.csv","src\\main\\java\\com\\zephyrus\\Arquivos\\dadosTrusted.csv");
         CsvProcessador.processarTrusted();
-        S3Upload.uploadArquivo("bucketclient2510","dadosClient.csv","src\\main\\java\\com\\zephyrus\\Arquivos\\dadosClient.csv");
+        //S3Upload.uploadArquivo("bucketclient2510","dadosClient.csv","src\\main\\java\\com\\zephyrus\\Arquivos\\dadosClient.csv");
 
     }}
 
