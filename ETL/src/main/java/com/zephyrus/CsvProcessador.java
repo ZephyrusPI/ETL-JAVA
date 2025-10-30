@@ -1,5 +1,6 @@
 package com.zephyrus;
 import com.zephyrus.Jira.JiraService;
+import com.zephyrus.S3.S3Download;
 import com.zephyrus.dao.ParametroDao;
 import com.zephyrus.model.Parametro;
 import org.apache.commons.csv.CSVFormat;
@@ -80,10 +81,11 @@ public class CsvProcessador {
         }
     }
 
-    public static void processarTrusted() {
+    public static void processarTrusted(String nomeBucket) {
         List<Parametro> parametros = ParametroDao.buscarParametros();
-        String arquivoTrusted = "src\\main\\java\\com\\zephyrus\\Arquivos\\dadosTrusted.csv";
-        String arquivoClient = "src\\main\\java\\com\\zephyrus\\Arquivos\\dadosClient.csv";
+
+        String arquivoTrusted = "C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\dadosTrusted.csv";
+        String arquivoClient = "C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\dadosClient.csv";
 
         try (
                 BufferedReader reader = new BufferedReader(new FileReader(arquivoTrusted));
@@ -129,6 +131,7 @@ public class CsvProcessador {
 
             printer.printRecord(timestamp,hospital,numeroSerie,area,componente,valorLido,valorMin,valorMax,tipoAlerta);
             printer.flush();
+            JiraService.criarAlerta(valorLido,componente);
         }catch (Exception e){
             log.error("e: ", e);
         }
