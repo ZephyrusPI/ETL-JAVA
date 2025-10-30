@@ -1,0 +1,4 @@
+timestamp,ID,Modelo,Area,CPU,RAM,Disco,Processos,Bateria
+2025-10-30T21:18:33,4,Dx3010,Cirurgia,2.6,41.3,99.0,356.0,21.7
+2025-10-30T21:18:39,4,Dx3010,Cirurgia,0.6,41.2,99.0,356.0,21.6
+2025-10-30T21:18:45,4,Dx3010,Cirurgia,2.0,41.2,99.0,356.0,21.6

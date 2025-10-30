@@ -7,16 +7,16 @@ import java.nio.file.Paths;
 
 public class S3Upload {
 
-    public static void uploadArquivo(String nomeBucket, String nomeArquivo, String conteudo) {
+    public static void uploadArquivo(String nomeBucket, String nomeArquivoNoBucket, String arquivoLocal) {
         S3Client s3 = S3Config.getS3Client();
 
         PutObjectRequest request = PutObjectRequest.builder()
                 .bucket(nomeBucket)
-                .key(nomeArquivo)
+                .key(nomeArquivoNoBucket)
                 .contentType("text/csv")
                 .build();
 
-        s3.putObject(request, RequestBody.fromString((conteudo)));
+        s3.putObject(request, RequestBody.fromString((arquivoLocal)));
 
         System.out.println(" Upload concluído para o bucket: " + nomeBucket);
     }

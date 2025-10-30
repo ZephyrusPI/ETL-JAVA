@@ -32,18 +32,20 @@ public class ProcessarRaw {
     Map<String, StringBuilder> datas = new HashMap<>();
 
     for (CSVRecord linha : linhas) {
-        String dataStr = linha.get("timestamp");
-        String dataSomente = dataStr.split(" ")[0];
-        LocalDate data = LocalDate.parse(dataSomente);
+        String dataStr = padronizaData(linha.get("timestamp")) ;
+
+        LocalDateTime data = LocalDateTime.parse(dataStr);
         System.out.println(data);
 
 
 
         int ano = data.getYear();
         int mes = data.getMonthValue();
-        int semana = data.get(WeekFields.ISO.weekOfMonth());
+        int semana = data.get(WeekFields.ISO. weekOfYear());
+        int dia=data.getDayOfMonth();
 
-        String pasta = ano + "/" + mes + "/" + semana;
+
+        String pasta = ano + "/" + mes + "/" + semana+"/"+dia;
 
         datas.putIfAbsent(pasta, new StringBuilder("timestamp,ID,Modelo,Area,CPU,RAM,Disco,Processos,Bateria\n"));
         datas.get(pasta).append(String.join(",",

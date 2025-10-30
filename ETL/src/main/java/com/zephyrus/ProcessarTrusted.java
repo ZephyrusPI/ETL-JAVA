@@ -2,6 +2,7 @@ package com.zephyrus;
 
 import com.zephyrus.Jira.JiraService;
 import com.zephyrus.S3.S3Download;
+import com.zephyrus.S3.S3Upload;
 import com.zephyrus.dao.ParametroDao;
 import com.zephyrus.model.Parametro;
 import org.apache.commons.csv.CSVFormat;
@@ -15,22 +16,24 @@ import java.time.temporal.WeekFields;
 import java.util.List;
 
 public class ProcessarTrusted {
-    public static void processarTrustedAlertas(String nomeBucket) {
+    public static void processarTrustedAlertasDiarios(String nomeBucketTrusted,String nomeBucketClient) {
         List<Parametro> parametros = ParametroDao.buscarParametros();
-        LocalDate ultimaSemana= LocalDate.now().minusDays(15);
-        int ano=ultimaSemana.getYear();
-        int mes=ultimaSemana.getMonthValue();
-        int semana=ultimaSemana.get(WeekFields.ISO.weekOfMonth());
-String arquivoTrusted=ano+"/"+mes+"/"+semana+"/"+"dadostrusted.csv";
-String arquivoClient="C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\dadosAlertasUltimaSemanaClient.csv";
-        String caminhoLocal = "C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\arquivoTrustedSemana.csv";
+        LocalDate hoje= LocalDate.now();
+        int ano=hoje.getYear();
+        int mes=hoje.getMonthValue();
+        int semana=hoje.get(WeekFields.ISO.weekOfYear());
+        int dia=hoje.getDayOfMonth();
+String arquivoBuscadoTrusted=ano+"/"+mes+"/"+semana+"/"+dia+"/"+"dadostrusted.csv";
+String arquivoClientLocal="C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\dadosAlertasUltimaSemanaClient.csv";
+        String arquivoBuscadoTrustedLocal = "arquivoTrustedSemana.csv";
+        String arquivoClient="Alertas/Diario/alertas.csv";
 
-        S3Download.downloadArquivo(nomeBucket,arquivoTrusted,caminhoLocal);
+        S3Download.downloadArquivo(nomeBucketTrusted,arquivoBuscadoTrusted,arquivoBuscadoTrustedLocal);
 
         try (
-                BufferedReader reader = new BufferedReader(new FileReader(caminhoLocal));
+                BufferedReader reader = new BufferedReader(new FileReader(arquivoBuscadoTrustedLocal));
                 CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withHeader("timestamp","ID","Modelo","Area","CPU","RAM","Disco","Processos","Bateria").withFirstRecordAsHeader());
-                BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoClient));
+                BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoClientLocal));
                 CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(
                         "timestamp","hospital","numero_serie","area","componente","valor_lido","min_permitido","max_permitido","tipo_alerta"))
         ) {
@@ -42,13 +45,13 @@ String arquivoClient="C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main\\jav
                 Double ram = Double.valueOf(record.get("RAM"));
                 Double disco = Double.valueOf(record.get("Disco"));
                 Double bateria = Double.valueOf(record.get("Bateria"));
-                verificarParametro(parametros, csvPrinter,"RAM",ram,numeroSerie,timestamp,arquivoClient);
-                verificarParametro(parametros, csvPrinter,"CPU",cpu,numeroSerie,timestamp,arquivoClient);
-                verificarParametro(parametros, csvPrinter,"Disco",disco,numeroSerie,timestamp,arquivoClient);
-                verificarParametro(parametros, csvPrinter,"Bateria",bateria,numeroSerie,timestamp,arquivoClient);
+                verificarParametro(parametros, csvPrinter,"RAM",ram,numeroSerie,timestamp,arquivoClientLocal);
+                verificarParametro(parametros, csvPrinter,"CPU",cpu,numeroSerie,timestamp,arquivoClientLocal);
+                verificarParametro(parametros, csvPrinter,"Disco",disco,numeroSerie,timestamp,arquivoClientLocal );
+                verificarParametro(parametros, csvPrinter,"Bateria",bateria,numeroSerie,timestamp,arquivoClientLocal);
                 ;
             }
-
+            S3Upload.uploadArquivo(nomeBucketClient,arquivoClient,arquivoClientLocal);
         } catch (Exception e) {
             System.out.println("Erro: " + e);
         }
