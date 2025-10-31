@@ -24,8 +24,8 @@ public class ProcessarTrusted {
         int semana=hoje.get(WeekFields.ISO.weekOfYear());
         int dia=hoje.getDayOfMonth();
 String arquivoBuscadoTrusted=ano+"/"+mes+"/"+semana+"/"+dia+"/"+"dadostrusted.csv";
-String arquivoClientLocal="C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\dadosAlertasUltimaSemanaClient.csv";
-        String arquivoBuscadoTrustedLocal = "arquivoTrustedSemana.csv";
+String arquivoClientLocal="ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\arquivoClientAlertaDia.csv";
+        String arquivoBuscadoTrustedLocal = "arquivoTrustedDia.csv";
         String arquivoClient="Alertas/Diario/alertas.csv";
 
         S3Download.downloadArquivo(nomeBucketTrusted,arquivoBuscadoTrusted,arquivoBuscadoTrustedLocal);
@@ -55,6 +55,20 @@ String arquivoClientLocal="C:\\Users\\isafa\\Documents\\ETL-JAVA\\ETL\\src\\main
         } catch (Exception e) {
             System.out.println("Erro: " + e);
         }
+    }
+    public static void processarTrustedConsumoMensal(String nomeBucketTrusted,String nomeBucketClient){
+
+        LocalDate hoje= LocalDate.now();
+        int ano=hoje.getYear();
+        int mes=hoje.getMonthValue();
+        String arquivoBuscadoTrusted=ano+"/"+mes+"/"+"dadosTrustedMensal.csv";
+        String arquivoClientLocal="ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\arquivoClientMensal.csv";
+        String arquivoClient="dadosDoMes/dadosMensal.csv";
+
+        S3Download.downloadArquivo(nomeBucketTrusted,arquivoBuscadoTrusted,arquivoClientLocal);
+        S3Upload.uploadArquivo(nomeBucketClient,arquivoClient,arquivoClientLocal);
+
+
     }
 
     public static  void verificarParametro(List<Parametro> parametros,CSVPrinter printer ,String componente, Double valorLido, String numeroSerie,String timestamp,String arquivo) {

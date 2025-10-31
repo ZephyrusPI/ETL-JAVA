@@ -25,10 +25,6 @@ public class ProcessarRaw {
            .parse(reader);
 
 
-
-
-
-
     Map<String, StringBuilder> datas = new HashMap<>();
 
     for (CSVRecord linha : linhas) {
@@ -75,7 +71,63 @@ public class ProcessarRaw {
    }
 
 
+
 }
+    public static void processarRawPorMes(String caminhoRaw,String bucketDestino) throws FileNotFoundException {
+        try(  BufferedReader reader=new BufferedReader(new FileReader(caminhoRaw));
+        ) { Iterable<CSVRecord> linhas = CSVFormat.DEFAULT
+                .withFirstRecordAsHeader()
+                .parse(reader);
+
+
+
+
+
+
+            Map<String, StringBuilder> datas = new HashMap<>();
+
+            for (CSVRecord linha : linhas) {
+                String dataStr = padronizaData(linha.get("timestamp")) ;
+
+                LocalDateTime data = LocalDateTime.parse(dataStr);
+                System.out.println(data);
+
+
+
+                int ano = data.getYear();
+                int mes = data.getMonthValue();
+
+                String pasta = ano + "/" + mes;
+
+                datas.putIfAbsent(pasta, new StringBuilder("timestamp,ID,Modelo,Area,CPU,RAM,Disco,Processos,Bateria\n"));
+                datas.get(pasta).append(String.join(",",
+                        padronizaData(linha.get("timestamp")),
+                        linha.get("ID"),
+                        linha.get("Modelo"),
+                        linha.get("Area"),
+                        converterNumero(linha.get("CPU")),
+                        converterNumero(linha.get("RAM")),
+                        converterNumero(linha.get("Disco")),
+                        converterNumero( linha.get("Processos")),
+                        converterNumero(linha.get("Bateria")))).append("\n");
+            }
+            System.out.println(datas);
+
+            for (String pasta : datas.keySet()) {
+                String conteudo = datas.get(pasta).toString();
+                String diretorioDestino = pasta + "/" + "dadosTrustedMensal.csv";
+                S3Upload.uploadArquivo(bucketDestino,diretorioDestino,conteudo);
+
+            }
+
+
+            System.out.println("Finalizado!");
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+
+
+    }
 
     private static String converterNumero(String valor) {
         try {
