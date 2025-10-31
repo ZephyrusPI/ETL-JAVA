@@ -1,10 +1,13 @@
 timestamp,hospital,numero_serie,area,componente,valor_lido,min_permitido,max_permitido,tipo_alerta
-2025-10-30T21:18:33,Hospital de Câncer,4,Observação,RAM,41.3,50.0,70.0,Abaixo
-2025-10-30T21:18:33,Hospital de Câncer,4,Observação,CPU,2.6,20.0,90.0,Abaixo
-2025-10-30T21:18:33,Hospital de Câncer,4,Observação,Bateria,21.7,25.0,0.0,Abaixo
-2025-10-30T21:18:39,Hospital de Câncer,4,Observação,RAM,41.2,50.0,70.0,Abaixo
-2025-10-30T21:18:39,Hospital de Câncer,4,Observação,CPU,0.6,20.0,90.0,Abaixo
-2025-10-30T21:18:39,Hospital de Câncer,4,Observação,Bateria,21.6,25.0,0.0,Abaixo
-2025-10-30T21:18:45,Hospital de Câncer,4,Observação,RAM,41.2,50.0,70.0,Abaixo
-2025-10-30T21:18:45,Hospital de Câncer,4,Observação,CPU,2.0,20.0,90.0,Abaixo
-2025-10-30T21:18:45,Hospital de Câncer,4,Observação,Bateria,21.6,25.0,0.0,Abaixo
+2025-10-31T21:18:45,Hospital de Câncer,4,Observação,RAM,41.2,50.0,70.0,Abaixo
+2025-10-31T21:18:45,Hospital de Câncer,4,Observação,CPU,2.0,20.0,90.0,Abaixo
+2025-10-31T21:18:45,Hospital de Câncer,4,Observação,Bateria,21.6,25.0,0.0,Abaixo
+2025-10-31T21:19:09,Hospital de Câncer,4,Observação,RAM,41.6,50.0,70.0,Abaixo
+2025-10-31T21:19:09,Hospital de Câncer,4,Observação,CPU,0.8,20.0,90.0,Abaixo
+2025-10-31T21:19:09,Hospital de Câncer,4,Observação,Bateria,21.4,25.0,0.0,Abaixo
+2025-10-31T21:19:15,Hospital de Câncer,4,Observação,RAM,41.5,50.0,70.0,Abaixo
+2025-10-31T21:19:15,Hospital de Câncer,4,Observação,CPU,0.6,20.0,90.0,Abaixo
+2025-10-31T21:19:15,Hospital de Câncer,4,Observação,Bateria,21.4,25.0,0.0,Abaixo
+2025-10-31T21:19:21,Hospital de Câncer,4,Observação,RAM,41.5,50.0,70.0,Abaixo
+2025-10-31T21:19:21,Hospital de Câncer,4,Observação,CPU,0.7,20.0,90.0,Abaixo
+2025-10-31T21:19:21,Hospital de Câncer,4,Observação,Bateria,21.4,25.0,0.0,Abaixo
