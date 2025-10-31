@@ -10,7 +10,7 @@ public class ConnectionFactory {
     public static Connection conectar(){    try{
 
         String url = "jdbc:mysql://localhost:3306/zephyrus";
-        String senha = "Giovanna01";
+        String senha = "Admin123";
         String usuario = "root";
         return DriverManager.getConnection(url, usuario, senha);
         } catch (SQLException e) {

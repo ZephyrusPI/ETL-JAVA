@@ -60,7 +60,7 @@ public class ProcessarRaw {
     for (String pasta : datas.keySet()) {
         String conteudo = datas.get(pasta).toString();
         String diretorioDestino = pasta + "/" + "dadostrusted.csv";
-        S3Upload.uploadArquivo(bucketDestino,diretorioDestino,conteudo);
+        S3Upload.uploadText(bucketDestino,diretorioDestino,conteudo);
 
     }
 
@@ -116,7 +116,7 @@ public class ProcessarRaw {
             for (String pasta : datas.keySet()) {
                 String conteudo = datas.get(pasta).toString();
                 String diretorioDestino = pasta + "/" + "dadosTrustedMensal.csv";
-                S3Upload.uploadArquivo(bucketDestino,diretorioDestino,conteudo);
+                S3Upload.uploadText(bucketDestino,diretorioDestino,conteudo);
 
             }
 

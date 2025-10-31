@@ -7,7 +7,7 @@ import java.nio.file.Paths;
 
 public class S3Upload {
 
-    public static void uploadArquivo(String nomeBucket, String nomeArquivoNoBucket, String arquivoLocal) {
+    public static void uploadText(String nomeBucket, String nomeArquivoNoBucket, String arquivoLocal) {
         S3Client s3 = S3Config.getS3Client();
 
         PutObjectRequest request = PutObjectRequest.builder()

@@ -3,6 +3,7 @@ package com.zephyrus;
 import com.zephyrus.Jira.JiraService;
 import com.zephyrus.S3.S3Download;
 import com.zephyrus.S3.S3Upload;
+import com.zephyrus.S3.S3UploadArquivo;
 import com.zephyrus.dao.ParametroDao;
 import com.zephyrus.model.Parametro;
 import org.apache.commons.csv.CSVFormat;
@@ -24,7 +25,7 @@ public class ProcessarTrusted {
         int semana=hoje.get(WeekFields.ISO.weekOfYear());
         int dia=hoje.getDayOfMonth();
 String arquivoBuscadoTrusted=ano+"/"+mes+"/"+semana+"/"+dia+"/"+"dadostrusted.csv";
-String arquivoClientLocal="ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\arquivoClientAlertaDia.csv";
+String arquivoClientLocal="arquivoClientAlertaDia.csv";
         String arquivoBuscadoTrustedLocal = "arquivoTrustedDia.csv";
         String arquivoClient="Alertas/Diario/alertas.csv";
 
@@ -51,7 +52,7 @@ String arquivoClientLocal="ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\arquiv
                 verificarParametro(parametros, csvPrinter,"Bateria",bateria,numeroSerie,timestamp,arquivoClientLocal);
                 ;
             }
-            S3Upload.uploadArquivo(nomeBucketClient,arquivoClient,arquivoClientLocal);
+            S3UploadArquivo.uploadArquivo(nomeBucketClient,arquivoClient,arquivoClientLocal);
         } catch (Exception e) {
             System.out.println("Erro: " + e);
         }
@@ -62,11 +63,11 @@ String arquivoClientLocal="ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\arquiv
         int ano=hoje.getYear();
         int mes=hoje.getMonthValue();
         String arquivoBuscadoTrusted=ano+"/"+mes+"/"+"dadosTrustedMensal.csv";
-        String arquivoClientLocal="ETL\\src\\main\\java\\com\\zephyrus\\Arquivos\\arquivoClientMensal.csv";
+        String arquivoClientLocal="arquivoClientMensal.csv";
         String arquivoClient="dadosDoMes/dadosMensal.csv";
 
         S3Download.downloadArquivo(nomeBucketTrusted,arquivoBuscadoTrusted,arquivoClientLocal);
-        S3Upload.uploadArquivo(nomeBucketClient,arquivoClient,arquivoClientLocal);
+        S3UploadArquivo.uploadArquivo(nomeBucketClient,arquivoClient,arquivoClientLocal);
 
 
     }
