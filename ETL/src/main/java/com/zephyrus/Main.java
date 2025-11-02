@@ -2,18 +2,38 @@ package com.zephyrus;
 
 import com.zephyrus.S3.S3Download;
 
-import java.io.*;
-
 public class Main {
-    public static void main(String[] args) throws FileNotFoundException {
+    public static void main(String[] args) {
 
-      //  S3Download.downloadArquivo("bucketraw2510", "dadosGrupo.csv", "ETL\\src\\main\\java\\com\\zephyrus\\dadosRaw.csv");
-     //S3Upload.uploadArquivo("bucketclient2510","dadosClient.csv","src\\main\\java\\com\\zephyrus\\Arquivos\\dadosClient.csv");
-     ProcessarRaw.processarRawPorSemana("ETL\\src\\main\\java\\com\\zephyrus\\dadosRaw.csv","buckettrusted2510");
-     ProcessarTrusted.processarTrustedAlertasDiarios("buckettrusted2510","bucketclient2510");
-        ProcessarRaw.processarRawPorMes("ETL\\src\\main\\java\\com\\zephyrus\\dadosRaw.csv","buckettrusted2510");
-        ProcessarTrusted.processarTrustedConsumoMensal("buckettrusted2510","bucketclient2510");
+        System.out.println("- Iniciando execução do ETL...");
 
+        String caminhoRawLocal = "/app/dadosRaw.csv";
 
-    }}
+        String bucketRaw = "raw-zephyrus";
+        String bucketTrusted = "trusted-zephyrus";
+        String bucketClient = "client-zephyrus";
 
+        try {
+            System.out.println("- Baixando dados do bucket RAW...");
+            S3Download.downloadArquivo(bucketRaw, "dadosRaw.csv", caminhoRawLocal);
+
+            System.out.println("- Processando dados semanais (Trusted)...");
+            ProcessarRaw.processarRawPorSemana(caminhoRawLocal, bucketTrusted);
+
+            System.out.println("- Gerando alertas diários (Client)...");
+            ProcessarTrusted.processarTrustedAlertasDiarios(bucketTrusted, bucketClient);
+
+            System.out.println("- Processando dados mensais (Trusted)...");
+            ProcessarRaw.processarRawPorMes(caminhoRawLocal, bucketTrusted);
+
+            System.out.println("- Gerando consumo mensal (Client)...");
+            ProcessarTrusted.processarTrustedConsumoMensal(bucketTrusted, bucketClient);
+
+            System.out.println("- ETL Finalizado com sucesso!");
+
+        } catch (Exception e) {
+            System.err.println("- Erro durante a execução do ETL: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}

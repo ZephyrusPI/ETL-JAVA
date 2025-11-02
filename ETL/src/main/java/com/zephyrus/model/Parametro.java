@@ -1,9 +1,5 @@
 package com.zephyrus.model;
 
-import software.amazon.awssdk.services.s3.endpoints.internal.Value;
-
-import java.time.LocalDate;
-
 public class Parametro {
     private String nomeHospital;
     private String numeroSerie;
@@ -12,8 +8,18 @@ public class Parametro {
     private Double parametroMin;
     private String nomeComponente;
     private String unidadeMedida;
+    private Integer idVentilador;
 
-    public Parametro(String nomeHospital, String numeroSerie, String area, Double parametroMax, Double parametroMin, String nomeComponente, String unidadeMedida) {
+    public Parametro(
+            String nomeHospital,
+            String numeroSerie,
+            String area,
+            Double parametroMax,
+            Double parametroMin,
+            String nomeComponente,
+            String unidadeMedida,
+            Integer idVentilador
+    ) {
         this.nomeHospital = nomeHospital;
         this.numeroSerie = numeroSerie;
         this.area = area;
@@ -21,6 +27,7 @@ public class Parametro {
         this.parametroMin = parametroMin;
         this.nomeComponente = nomeComponente;
         this.unidadeMedida = unidadeMedida;
+        this.idVentilador = idVentilador;
     }
 
     public String getNomeHospital() {
@@ -51,6 +58,14 @@ public class Parametro {
         return unidadeMedida;
     }
 
+    public Integer getIdVentilador() {
+        return idVentilador;
+    }
+
+    public void setIdVentilador(Integer idVentilador) {
+        this.idVentilador = idVentilador;
+    }
+
     @Override
     public String toString() {
         return "Parametro{" +
@@ -61,6 +76,7 @@ public class Parametro {
                 ", parametroMin=" + parametroMin +
                 ", nomeComponente='" + nomeComponente + '\'' +
                 ", unidadeMedida='" + unidadeMedida + '\'' +
+                ", idVentilador=" + idVentilador +
                 '}';
     }
 }

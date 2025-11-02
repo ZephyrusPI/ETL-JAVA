@@ -17,13 +17,11 @@ import java.util.Map;
 
 public class ProcessarRaw {
 
-
     public static void processarRawPorSemana(String caminhoRaw,String bucketDestino) throws FileNotFoundException {
    try(  BufferedReader reader=new BufferedReader(new FileReader(caminhoRaw));
       ) { Iterable<CSVRecord> linhas = CSVFormat.DEFAULT
            .withFirstRecordAsHeader()
            .parse(reader);
-
 
     Map<String, StringBuilder> datas = new HashMap<>();
 
@@ -31,15 +29,11 @@ public class ProcessarRaw {
         String dataStr = padronizaData(linha.get("timestamp")) ;
 
         LocalDateTime data = LocalDateTime.parse(dataStr);
-        System.out.println(data);
-
-
 
         int ano = data.getYear();
         int mes = data.getMonthValue();
         int semana = data.get(WeekFields.ISO. weekOfYear());
         int dia=data.getDayOfMonth();
-
 
         String pasta = ano + "/" + mes + "/" + semana+"/"+dia;
 
@@ -54,35 +48,25 @@ public class ProcessarRaw {
                 converterNumero(linha.get("Disco")),
                 converterNumero( linha.get("Processos")),
                 converterNumero(linha.get("Bateria")))).append("\n");
+        }
+
+        for (String pasta : datas.keySet()) {
+            String conteudo = datas.get(pasta).toString();
+            String diretorioDestino = pasta + "/" + "dadostrusted.csv";
+            S3Upload.uploadText(bucketDestino,diretorioDestino,conteudo);
+        }
+
+        System.out.println("Finalizado!");
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
-    System.out.println(datas);
 
-    for (String pasta : datas.keySet()) {
-        String conteudo = datas.get(pasta).toString();
-        String diretorioDestino = pasta + "/" + "dadostrusted.csv";
-        S3Upload.uploadText(bucketDestino,diretorioDestino,conteudo);
-
-    }
-
-
-    System.out.println("Finalizado!");
-} catch (IOException ex) {
-       throw new RuntimeException(ex);
-   }
-
-
-
-}
     public static void processarRawPorMes(String caminhoRaw,String bucketDestino) throws FileNotFoundException {
         try(  BufferedReader reader=new BufferedReader(new FileReader(caminhoRaw));
         ) { Iterable<CSVRecord> linhas = CSVFormat.DEFAULT
                 .withFirstRecordAsHeader()
                 .parse(reader);
-
-
-
-
-
 
             Map<String, StringBuilder> datas = new HashMap<>();
 
@@ -91,8 +75,6 @@ public class ProcessarRaw {
 
                 LocalDateTime data = LocalDateTime.parse(dataStr);
                 System.out.println(data);
-
-
 
                 int ano = data.getYear();
                 int mes = data.getMonthValue();
@@ -111,7 +93,6 @@ public class ProcessarRaw {
                         converterNumero( linha.get("Processos")),
                         converterNumero(linha.get("Bateria")))).append("\n");
             }
-            System.out.println(datas);
 
             for (String pasta : datas.keySet()) {
                 String conteudo = datas.get(pasta).toString();
@@ -120,13 +101,10 @@ public class ProcessarRaw {
 
             }
 
-
             System.out.println("Finalizado!");
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
-
-
     }
 
     private static String converterNumero(String valor) {
@@ -136,8 +114,6 @@ public class ProcessarRaw {
         } catch (Exception e) {
             return "0";
         }
-
-
     }
 
     private static String padronizaData(String dataBruta) {
