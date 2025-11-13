@@ -10,13 +10,23 @@ public class JiraService {
 
     private static final String JIRA_URL = "https://zephyrus2g1.atlassian.net/rest/api/3/issue";
     private static final String EMAIL = "zephyrus2g@gmail.com";
-    private static final String API_TOKEN = "ATATT3xFfGF0GOi6uWYw_qixBqzwKjmPoTrQYdk4ZSPEI2uX_pYxG8eM4_zO7v85j1qDJhMRQXiVHARCmstFbhxKTrgwmz2gUanGMo4mcWLd5Noz8aRpleClehtSb3dy7T8W4Kf-bG0FWBocnFiq3xtyEGxISlHegXsh5qgGWJUdwJCO5N2kf_8=F5667C11";
+
 
     public static void criarAlertaComUnidade(
             double valor, String componente, String unidade,
             String hospital, double min, double max, String area,
             String numeroSerie, String timestamp
     ) throws Exception {
+      String prioridade;
+      if (valor<=max*1.1 && valor>=min*0.9){
+          prioridade="Low";}
+
+        else if (valor<=max*1.15 && valor>=min*0.85){
+          prioridade="Medium";}
+        else{
+          prioridade="High";};  
+
+      
 
         String resumo = String.format("Alerta de %s (%.2f - %s)", componente, valor, unidade);
 
@@ -26,6 +36,7 @@ public class JiraService {
         {
           "fields": {
             "project": { "key": "KAN" },
+            "priority": { "name": "%s" },
             "summary": "%s",
             "description": {
               "type": "doc",
@@ -85,7 +96,7 @@ public class JiraService {
           }
         }
         """,
-                resumo, hospital, area, numeroSerie, timestamp,
+                prioridade ,resumo, hospital, area, numeroSerie, timestamp,
                 componente, valor, unidade, min, max
         );
 
@@ -102,5 +113,11 @@ public class JiraService {
 
         System.out.println("Status Jira: " + response.statusCode());
         System.out.println("Resposta: " + response.body());
+    }
+
+    public static void main(String[] args) throws Exception {
+        criarAlertaComUnidade(102.00,"CPU","%","TESTEISABELLA",20.5,84.20,"TESTE","TESTE","TESTE");
+        criarAlertaComUnidade(17.00,"CPU","%","TESTEISABELLA",20.5,84.20,"TESTE","TESTE","TESTE");
+
     }
 }
