@@ -17,8 +17,11 @@ import java.time.temporal.WeekFields;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 
 public class ProcessarTrusted {
+
+    private static final HashSet<String> alertasDoDia = new HashSet<>();
 
     public static void processarTrustedAlertasDiarios(String nomeBucketTrusted, String nomeBucketClient) {
         List<Parametro> parametros = ParametroDao.buscarParametros();
@@ -27,6 +30,8 @@ public class ProcessarTrusted {
         int mes = hoje.getMonthValue();
         int semana = hoje.get(WeekFields.ISO.weekOfYear());
         int dia = hoje.getDayOfMonth();
+
+        alertasDoDia.clear();
 
         String arquivoBuscadoTrusted = String.format("%d/%d/%d/%d/dadostrusted.csv", ano, mes, semana, dia);
         String arquivoTrustedLocal = "arquivoTrustedDia.csv";
@@ -44,22 +49,17 @@ public class ProcessarTrusted {
 
         try (
                 BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(
-                                new FileInputStream(arquivoTrustedLocal),
-                                StandardCharsets.UTF_8
-                        )
+                        new InputStreamReader(new FileInputStream(arquivoTrustedLocal), StandardCharsets.UTF_8)
                 );
                 CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT
                         .withHeader("timestamp", "ID", "Modelo", "Area", "CPU", "RAM", "Disco", "Processos", "Bateria")
                         .withFirstRecordAsHeader());
                 BufferedWriter writer = new BufferedWriter(
-                        new OutputStreamWriter(
-                                new FileOutputStream(arquivoClientLocal),
-                                StandardCharsets.UTF_8
-                        )
+                        new OutputStreamWriter(new FileOutputStream(arquivoClientLocal), StandardCharsets.UTF_8)
                 );
                 CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(
-                        "timestamp", "hospital", "numero_serie", "area", "componente", "valor_lido", "min_permitido", "max_permitido", "tipo_alerta"))
+                        "timestamp", "hospital", "numero_serie", "area", "componente",
+                        "valor_lido", "min_permitido", "max_permitido", "tipo_alerta"))
         ) {
 
             for (CSVRecord record : csvParser) {
@@ -74,14 +74,16 @@ public class ProcessarTrusted {
                 valores.put("Processos", Double.valueOf(record.get("Processos") == null || record.get("Processos").trim().isEmpty() || record.get("Processos").equalsIgnoreCase("N/A") ? "0" : record.get("Processos").trim()));
 
                 List<Parametro> parametrosDoVentilador = parametros.stream()
-                        .filter(p -> p.getIdVentilador() != null
-                                && p.getIdVentilador().equals(Integer.valueOf(idVentilador)))
+                        .filter(p -> p.getIdVentilador() != null &&
+                                p.getIdVentilador().equals(Integer.valueOf(idVentilador)))
                         .toList();
 
                 for (Parametro p : parametrosDoVentilador) {
                     Double valorLido = valores.get(p.getNomeComponente());
+
                     if (valorLido != null) {
                         if (valorLido >= p.getParametroMax() || valorLido < p.getParametroMin()) {
+
                             criarClient(csvPrinter, timestamp, p.getNomeComponente(), valorLido,
                                     p.getNomeHospital(), p.getParametroMax(), p.getParametroMin(),
                                     p.getArea(), p.getNumeroSerie(), p.getUnidadeMedida());
@@ -91,7 +93,7 @@ public class ProcessarTrusted {
             }
 
             S3UploadArquivo.uploadArquivo(nomeBucketClient, arquivoClientNoBucket, arquivoClientLocal);
-            System.out.println("Upload de alertas diário enviado para: " + arquivoClientNoBucket + " em bucket " + nomeBucketClient);
+            System.out.println("Upload de alertas diário enviado para: " + arquivoClientNoBucket);
 
         } catch (Exception e) {
             System.out.println("Erro processando trusted -> client: " + e.getMessage());
@@ -116,14 +118,24 @@ public class ProcessarTrusted {
                                     String numeroSerie, String unidade) {
         try {
 
+            String data = timestamp.split("T")[0];
+
+            String chave = numeroSerie + "|" + componente + "|" + data;
             String valorFormatado = String.format("%.2f - %s", valorLido, unidade);
             String tipoAlerta = valorLido <= valorMin ? "Abaixo" : "Acima";
 
             printer.printRecord(timestamp, hospital, numeroSerie, area, componente,
-                    valorFormatado,
-                    valorMin, valorMax, tipoAlerta);
+                    valorFormatado, valorMin, valorMax, tipoAlerta);
 
             printer.flush();
+
+            if (alertasDoDia.contains(chave)) {
+                System.out.println("⚠ Alerta duplicado ignorado: " + chave);
+                return;
+            }
+
+            alertasDoDia.add(chave);
+
 
             try {
                 JiraService.criarAlertaComUnidade(
