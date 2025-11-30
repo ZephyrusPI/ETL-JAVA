@@ -10,28 +10,34 @@ public class JiraService {
 
     private static final String JIRA_URL = "https://zephyrus2g1.atlassian.net/rest/api/3/issue";
     private static final String EMAIL = "zephyrus2g@gmail.com";
-    private static final String API_TOKEN="";
+
+    // novamente: mudando para tokens configurados na Lambda para melhor segurança.
+    private static final String API_TOKEN = System.getenv("JIRA_TOKEN");
 
     public static void criarAlertaComUnidade(
             double valor, String componente, String unidade,
             String hospital, double min, double max, String area,
             String numeroSerie, String timestamp
     ) throws Exception {
-      String prioridade;
-      if (valor<=max*1.1 && valor>=min*0.9){
-          prioridade="Low";}
+        //Adicionando uma exception para não nos perdemos se der erro
+        if (API_TOKEN == null || API_TOKEN.isEmpty()) {
+            System.out.println("ERRO: JIRA_TOKEN não configurado nas variáveis de ambiente!");
+            return;
+        }
 
-        else if (valor<=max*1.2 && valor>=min*0.80){
-          prioridade="Medium";}
-        else{
-          prioridade="High";};
-
-
+        String prioridade;
+        if (valor <= max * 1.1 && valor >= min * 0.9) {
+            prioridade = "Low";
+        } else if (valor <= max * 1.2 && valor >= min * 0.80) {
+            prioridade = "Medium";
+        } else {
+            prioridade = "High";
+        }
 
         String resumo = String.format("Alerta de %s (%.2f - %s)", componente, valor, unidade);
-
         String auth = Base64.getEncoder().encodeToString((EMAIL + ":" + API_TOKEN).getBytes());
 
+        // Sem mudanças
         String json = String.format("""
         {
           "fields": {
@@ -44,64 +50,23 @@ public class JiraService {
               "type": "doc",
               "version": 1,
               "content": [
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Hospital: %s" }
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Área: %s" }
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Número de série: %s" }
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Timestamp: %s" }
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Componente: %s" }
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Valor lido: %.2f %s" }
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Mínimo permitido: %.2f" }
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    { "type": "text", "text": "Máximo permitido: %.2f" }
-                  ]
-                }
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Hospital: %s" }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Área: %s" }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Número de série: %s" }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Timestamp: %s" }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Componente: %s" }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Valor lido: %.2f %s" }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Mínimo permitido: %.2f" }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Máximo permitido: %.2f" }] }
               ]
             },
             "issuetype": { "name": "Request" }
           }
         }
         """,
-                prioridade ,resumo,hospital,area, hospital, area, numeroSerie, timestamp,
+                prioridade, resumo, hospital, area, hospital, area, numeroSerie, timestamp,
                 componente, valor, unidade, min, max
         );
-
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(JIRA_URL))
@@ -114,12 +79,5 @@ public class JiraService {
                 .send(request, HttpResponse.BodyHandlers.ofString());
 
         System.out.println("Status Jira: " + response.statusCode());
-        System.out.println("Resposta: " + response.body());
-    }
-
-    public static void main(String[] args) throws Exception {
-        criarAlertaComUnidade(102.00,"CPU","%","Santa casa",20.5,84.20,"Uti","TESTE","TESTE");
-        criarAlertaComUnidade(17.00,"CPU","%","Hospital x",20.5,84.20,"Neo-natal","TESTE","TESTE");
-
     }
 }

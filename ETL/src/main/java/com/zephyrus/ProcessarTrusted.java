@@ -15,16 +15,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.temporal.WeekFields;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.HashSet;
 
 public class ProcessarTrusted {
 
     private static final HashSet<String> alertasDoDia = new HashSet<>();
+    private static final String TEMP_DIR = "/tmp/";
 
     public static void processarTrustedAlertasDiarios(String nomeBucketTrusted, String nomeBucketClient) {
         List<Parametro> parametros = ParametroDao.buscarParametros();
+
         LocalDate hoje = LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo"));
         int ano = hoje.getYear();
         int mes = hoje.getMonthValue();
@@ -34,8 +36,10 @@ public class ProcessarTrusted {
         alertasDoDia.clear();
 
         String arquivoBuscadoTrusted = String.format("%d/%d/%d/%d/dadostrusted.csv", ano, mes, semana, dia);
-        String arquivoTrustedLocal = "arquivoTrustedDia.csv";
-        String arquivoClientLocal = "alertaDiario.csv";
+
+        // Caminhos locais apontando para /tmp/
+        String arquivoTrustedLocal = TEMP_DIR + "arquivoTrustedDia.csv";
+        String arquivoClientLocal = TEMP_DIR + "alertaDiario.csv";
         String arquivoClientNoBucket = "Alertas/alertaDiario.csv";
 
         System.out.println("Tentando baixar: " + arquivoBuscadoTrusted + " do bucket " + nomeBucketTrusted);
@@ -47,6 +51,7 @@ public class ProcessarTrusted {
             return;
         }
 
+        // Bloco try-with-resources garante que o arquivo é FECHADO e salvo no disco ao final
         try (
                 BufferedReader reader = new BufferedReader(
                         new InputStreamReader(new FileInputStream(arquivoTrustedLocal), StandardCharsets.UTF_8)
@@ -67,11 +72,11 @@ public class ProcessarTrusted {
                 String idVentilador = record.get("ID");
 
                 Map<String, Double> valores = new HashMap<>();
-                valores.put("CPU", Double.valueOf(record.get("CPU") == null || record.get("CPU").trim().isEmpty() || record.get("CPU").equalsIgnoreCase("N/A") ? "0" : record.get("CPU").trim()));
-                valores.put("RAM", Double.valueOf(record.get("RAM") == null || record.get("RAM").trim().isEmpty() || record.get("RAM").equalsIgnoreCase("N/A") ? "0" : record.get("RAM").trim()));
-                valores.put("Disco", Double.valueOf(record.get("Disco") == null || record.get("Disco").trim().isEmpty() || record.get("Disco").equalsIgnoreCase("N/A") ? "0" : record.get("Disco").trim()));
-                valores.put("Bateria", Double.valueOf(record.get("Bateria") == null || record.get("Bateria").trim().isEmpty() || record.get("Bateria").equalsIgnoreCase("N/A") ? "0" : record.get("Bateria").trim()));
-                valores.put("Processos", Double.valueOf(record.get("Processos") == null || record.get("Processos").trim().isEmpty() || record.get("Processos").equalsIgnoreCase("N/A") ? "0" : record.get("Processos").trim()));
+                valores.put("CPU", converterDouble(record.get("CPU")));
+                valores.put("RAM", converterDouble(record.get("RAM")));
+                valores.put("Disco", converterDouble(record.get("Disco")));
+                valores.put("Bateria", converterDouble(record.get("Bateria")));
+                valores.put("Processos", converterDouble(record.get("Processos")));
 
                 List<Parametro> parametrosDoVentilador = parametros.stream()
                         .filter(p -> p.getIdVentilador() != null &&
@@ -83,7 +88,6 @@ public class ProcessarTrusted {
 
                     if (valorLido != null) {
                         if (valorLido >= p.getParametroMax() || valorLido < p.getParametroMin()) {
-
                             criarClient(csvPrinter, timestamp, p.getNomeComponente(), valorLido,
                                     p.getNomeHospital(), p.getParametroMax(), p.getParametroMin(),
                                     p.getArea(), p.getNumeroSerie(), p.getUnidadeMedida());
@@ -92,12 +96,22 @@ public class ProcessarTrusted {
                 }
             }
 
-            S3UploadArquivo.uploadArquivo(nomeBucketClient, arquivoClientNoBucket, arquivoClientLocal);
-            System.out.println("Upload de alertas diário enviado para: " + arquivoClientNoBucket);
+            // Força a escrita antes de fechar o bloco
+            csvPrinter.flush();
+            writer.flush();
 
         } catch (Exception e) {
             System.out.println("Erro processando trusted -> client: " + e.getMessage());
             e.printStackTrace();
+        }
+
+        // Upload é feito FORA do try, garantindo que o arquivo já foi salvo e fechado pelo Java
+        File fClient = new File(arquivoClientLocal);
+        if (fClient.exists() && fClient.length() > 0) {
+            S3UploadArquivo.uploadArquivo(nomeBucketClient, arquivoClientNoBucket, arquivoClientLocal);
+            System.out.println("Upload de alertas diário enviado para: " + arquivoClientNoBucket);
+        } else {
+            System.out.println("Arquivo de alerta vazio ou não criado. Nada a enviar.");
         }
     }
 
@@ -105,21 +119,28 @@ public class ProcessarTrusted {
         LocalDate hoje = LocalDate.now();
         int ano = hoje.getYear();
         int mes = hoje.getMonthValue();
+
         String arquivoBuscadoTrusted = String.format("%d/%d/dadosTrustedMensal.csv", ano, mes);
-        String arquivoClientLocal = "arquivoClientMensal.csv";
+
+        String arquivoClientLocal = TEMP_DIR + "arquivoClientMensal.csv";
         String arquivoClient = String.format("dadosDoMes/dadosMensal.csv");
 
+        System.out.println("Baixando mensal: " + arquivoBuscadoTrusted);
         S3Download.downloadArquivo(nomeBucketTrusted, arquivoBuscadoTrusted, arquivoClientLocal);
-        S3UploadArquivo.uploadArquivo(nomeBucketClient, arquivoClient, arquivoClientLocal);
+
+        File f = new File(arquivoClientLocal);
+        if(f.exists() && f.length() > 0) {
+            S3UploadArquivo.uploadArquivo(nomeBucketClient, arquivoClient, arquivoClientLocal);
+        } else {
+            System.out.println("Arquivo mensal não encontrado ou vazio: " + arquivoClientLocal);
+        }
     }
 
     private static void criarClient(CSVPrinter printer, String timestamp, String componente, Double valorLido,
                                     String hospital, Double valorMax, Double valorMin, String area,
                                     String numeroSerie, String unidade) {
         try {
-
             String data = timestamp.split("T")[0];
-
             String chave = numeroSerie + "|" + componente + "|" + data;
             String valorFormatado = String.format("%.2f - %s", valorLido, unidade);
             String tipoAlerta = valorLido <= valorMin ? "Abaixo" : "Acima";
@@ -127,15 +148,13 @@ public class ProcessarTrusted {
             printer.printRecord(timestamp, hospital, numeroSerie, area, componente,
                     valorFormatado, valorMin, valorMax, tipoAlerta);
 
-            printer.flush();
+            // Não precisa de flush aqui, o flush geral ocorre no final do loop
 
             if (alertasDoDia.contains(chave)) {
                 System.out.println("⚠ Alerta duplicado ignorado: " + chave);
                 return;
             }
-
             alertasDoDia.add(chave);
-
 
             try {
                 JiraService.criarAlertaComUnidade(
@@ -149,6 +168,16 @@ public class ProcessarTrusted {
 
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    // Método auxiliar seguro para evitar erro de conversão
+    private static Double converterDouble(String valor) {
+        if (valor == null || valor.trim().isEmpty() || valor.equalsIgnoreCase("N/A")) return 0.0;
+        try {
+            return Double.valueOf(valor.trim());
+        } catch (Exception e) {
+            return 0.0;
         }
     }
 }
