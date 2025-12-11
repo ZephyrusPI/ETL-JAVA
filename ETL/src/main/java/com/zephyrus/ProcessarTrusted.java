@@ -23,32 +23,31 @@ public class ProcessarTrusted {
     private static final HashSet<String> alertasDoDia = new HashSet<>();
     private static final String TEMP_DIR = "/tmp/";
 
-    // Cabeçalho para arquivos de ALERTA (Client)
-    private static final String[] HEADER_ALERTA = {
+    // HEADER_ENRIQUECIDO: Usado para TODOS os arquivos do Client (Alertas, OKs e Geral)
+    // Contém as informações traduzidas (Hospital, Serial) + Status
+    private static final String[] HEADER_ENRIQUECIDO = {
             "timestamp", "hospital", "numero_serie", "area", "componente",
             "valor_lido", "min_permitido", "max_permitido", "tipo_alerta"
     };
 
-    // Cabeçalho para arquivos de DADOS BRUTOS (Trusted)
-    private static final String[] HEADER_TRUSTED = {
+    // HEADER_RAW: Usado apenas para o backup bruto no Trusted
+    private static final String[] HEADER_RAW = {
             "timestamp", "ID", "Modelo", "Area", "CPU", "RAM", "Disco", "Processos", "Bateria"
     };
 
-    // Mapa para gerenciar os escritores de arquivos temporários
-    // Chave: Caminho no S3 -> Valor: Caminho local no /tmp/
-    private static final Map<String, String> arquivosParaUpload = new HashMap<>();
-    private static final Map<String, BufferedWriter> escritoresAbertos = new HashMap<>();
-    private static final Map<String, CSVPrinter> printersAbertos = new HashMap<>();
+    // Mapas de Buffer
+    private static final Map<String, List<String[]>> bufferTrusted = new HashMap<>();
+    private static final Map<String, List<String[]>> bufferClient = new HashMap<>();
 
     public static void processarTrustedAlertasDiarios(String nomeBucketOrigem, String nomeBucketClient, String nomeArquivoInput) {
-        System.out.println("--- INICIANDO DISTRIBUIÇÃO HIERÁRQUICA: " + nomeArquivoInput + " ---");
+        System.out.println("--- INICIANDO PROCESSAMENTO FINAL: " + nomeArquivoInput + " ---");
 
         String nomeBucketTrusted = System.getenv("BUCKET_TRUSTED");
         List<Parametro> parametros = ParametroDao.buscarParametros();
         LocalDate hoje = LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo"));
 
         alertasDoDia.clear();
-        limparMapas(); // Limpa mapas estáticos para evitar lixo de execuções anteriores (no mesmo container)
+        limparMapas();
 
         // 1. Download
         String arquivoInputLocal = TEMP_DIR + "input_" + System.nanoTime() + ".csv";
@@ -57,26 +56,24 @@ public class ProcessarTrusted {
         File fInput = new File(arquivoInputLocal);
         if (!fInput.exists() || fInput.length() == 0) {
             System.out.println("Arquivo vazio. Abortando.");
+            deletarArquivo(fInput);
             return;
         }
 
-        // 2. Leitura e Distribuição Linha a Linha
+        // 2. Leitura
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(arquivoInputLocal), StandardCharsets.UTF_8));
-             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withHeader(HEADER_TRUSTED).withFirstRecordAsHeader())) {
+             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withHeader(HEADER_RAW).withFirstRecordAsHeader())) {
 
             for (CSVRecord record : csvParser) {
                 String timestampStr = record.get("timestamp");
 
-                // Parse da Data por linha
+                // Parse Data
                 LocalDate dataReg;
                 try {
                     String dataApenas = timestampStr.split(" ")[0];
                     dataReg = LocalDate.parse(dataApenas);
-                } catch (Exception e) {
-                    continue; // Pula linha com data inválida
-                }
+                } catch (Exception e) { continue; }
 
-                // Calcula os componentes da data
                 int ano = dataReg.getYear();
                 int mes = dataReg.getMonthValue();
                 int semana = dataReg.get(WeekFields.ISO.weekOfYear());
@@ -84,27 +81,20 @@ public class ProcessarTrusted {
                 String nomeMes = Month.of(mes).getDisplayName(TextStyle.FULL, new Locale("pt", "BR"));
                 nomeMes = nomeMes.substring(0, 1).toUpperCase() + nomeMes.substring(1);
 
-                // --- PREPARAÇÃO DOS DADOS ---
-
-                // Dados para o Trusted (Cópia da linha original)
-                Object[] dadosTrusted = {
-                        record.get("timestamp"), record.get("ID"), record.get("Modelo"), record.get("Area"),
-                        record.get("CPU"), record.get("RAM"), record.get("Disco"), record.get("Processos"), record.get("Bateria")
-                };
-
-                // --- ESCRITA NO TRUSTED (4 NÍVEIS) ---
+                // --- A) TRUSTED (BACKUP BRUTO - TUDO) ---
                 if (nomeBucketTrusted != null) {
-                    // 1. Ano
-                    adicionarAoBuffer(nomeBucketTrusted, String.format("%d/coletaAnual.csv", ano), dadosTrusted, HEADER_TRUSTED);
-                    // 2. Mês
-                    adicionarAoBuffer(nomeBucketTrusted, String.format("%d/%02d/coletaMensal.csv", ano, mes), dadosTrusted, HEADER_TRUSTED);
-                    // 3. Semana
-                    adicionarAoBuffer(nomeBucketTrusted, String.format("%d/%02d/Semana%d/coletaSemanal.csv", ano, mes, semana), dadosTrusted, HEADER_TRUSTED);
-                    // 4. Dia
-                    adicionarAoBuffer(nomeBucketTrusted, String.format("%d/%02d/Semana%d/%02d/coletaDiaria.csv", ano, mes, semana, dia), dadosTrusted, HEADER_TRUSTED);
+                    Object[] dadosBrutos = {
+                            record.get("timestamp"), record.get("ID"), record.get("Modelo"), record.get("Area"),
+                            record.get("CPU"), record.get("RAM"), record.get("Disco"), record.get("Processos"), record.get("Bateria")
+                    };
+                    // Salva a hierarquia completa dos dados brutos
+                    adicionarAoBuffer(bufferTrusted, String.format("%d/coletaAnual.csv", ano), dadosBrutos, HEADER_RAW);
+                    adicionarAoBuffer(bufferTrusted, String.format("%d/%02d/coletaMensal.csv", ano, mes), dadosBrutos, HEADER_RAW);
+                    adicionarAoBuffer(bufferTrusted, String.format("%d/%02d/Semana%d/coletaSemanal.csv", ano, mes, semana), dadosBrutos, HEADER_RAW);
+                    adicionarAoBuffer(bufferTrusted, String.format("%d/%02d/Semana%d/%02d/coletaDiaria.csv", ano, mes, semana, dia), dadosBrutos, HEADER_RAW);
                 }
 
-                // --- LÓGICA DE ALERTA (CLIENT) ---
+                // --- B) CLIENT (ENRIQUECIDO E SEGREGADO) ---
                 Integer idVentilador = converterInt(record.get("ID"));
                 Map<String, Double> valores = new HashMap<>();
                 valores.put("CPU", converterDouble(record.get("CPU")));
@@ -117,141 +107,148 @@ public class ProcessarTrusted {
 
                 for (Parametro p : params) {
                     Double valor = valores.get(p.getNomeComponente());
-                    if (valor != null && (valor >= p.getParametroMax() || valor < p.getParametroMin())) {
-                        String valFmt = String.format("%.2f - %s", valor, p.getUnidadeMedida());
-                        String tipo = valor <= p.getParametroMin() ? "Abaixo" : "Acima";
 
-                        Object[] dadosAlerta = {
+                    if (valor != null) {
+                        boolean isAlerta = false;
+                        String status = "OK";
+
+                        if (valor >= p.getParametroMax()) { status = "Acima"; isAlerta = true; }
+                        else if (valor < p.getParametroMin()) { status = "Abaixo"; isAlerta = true; }
+
+                        // Cria linha enriquecida (Hospital, Serial, etc)
+                        String valFmt = String.format("%.2f - %s", valor, p.getUnidadeMedida());
+                        Object[] dadosEnriquecidos = {
                                 timestampStr, p.getNomeHospital(), p.getNumeroSerie(), p.getArea(), p.getNomeComponente(),
-                                valFmt, String.valueOf(p.getParametroMin()), String.valueOf(p.getParametroMax()), tipo
+                                valFmt, String.valueOf(p.getParametroMin()), String.valueOf(p.getParametroMax()), status
                         };
 
-                        // --- ESCRITA NO CLIENT (5 ARQUIVOS) ---
+                        // 1. RESUMÃO DO MÊS ATUAL (coletasDoMes.csv)
+                        // Contém TUDO (OK + Alertas) se for do mês/ano atual
+                        if (dataReg.getYear() == hoje.getYear() && dataReg.getMonthValue() == hoje.getMonthValue()) {
+                            adicionarAoBuffer(bufferClient, "coletasDoMes.csv", dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                        }
 
-                        // Fixo (Diário) - Apenas alertaDiario.csv
-                        adicionarAoBuffer(nomeBucketClient, "Alertas/alertaDiario.csv", dadosAlerta, HEADER_ALERTA);
+                        // 2. SEGREGAÇÃO (AlertasHistorico vs ColetasHistorico)
 
-                        // Hierarquia Completa (Ano -> Mês -> Semana -> Dia)
-                        adicionarAoBuffer(nomeBucketClient, String.format("AlertasHistorico/%d/alertasDoAno.csv", ano), dadosAlerta, HEADER_ALERTA);
-                        adicionarAoBuffer(nomeBucketClient, String.format("AlertasHistorico/%d/%02d/alertasDo%s.csv", ano, mes, nomeMes), dadosAlerta, HEADER_ALERTA);
-                        adicionarAoBuffer(nomeBucketClient, String.format("AlertasHistorico/%d/%02d/Semana%d/alertaDaSemana.csv", ano, mes, semana), dadosAlerta, HEADER_ALERTA);
-                        adicionarAoBuffer(nomeBucketClient, String.format("AlertasHistorico/%d/%02d/Semana%d/%02d/alertaDoDia.csv", ano, mes, semana, dia), dadosAlerta, HEADER_ALERTA);
+                        if (isAlerta) {
+                            // --- É UM PROBLEMA ---
 
-                        // Jira (Só hoje)
-                        if (dataReg.equals(hoje)) {
-                            String chaveJira = p.getNumeroSerie() + "|" + p.getNomeComponente() + "|" + timestampStr;
-                            if (!alertasDoDia.contains(chaveJira)) {
-                                alertasDoDia.add(chaveJira);
-                                try {
-                                    JiraService.criarAlertaComUnidade(valor, p.getNomeComponente(), p.getUnidadeMedida(),
-                                            p.getNomeHospital(), p.getParametroMin(), p.getParametroMax(), p.getArea(), p.getNumeroSerie(), timestampStr);
-                                } catch (Exception je) {}
+                            // A) Alerta Fixo (Só hoje)
+                            if (dataReg.equals(hoje)) {
+                                adicionarAoBuffer(bufferClient, "Alertas/alertaDiario.csv", dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                                // Jira
+                                String chaveJira = p.getNumeroSerie() + "|" + p.getNomeComponente() + "|" + timestampStr;
+                                if (!alertasDoDia.contains(chaveJira)) {
+                                    alertasDoDia.add(chaveJira);
+                                    try {
+                                        JiraService.criarAlertaComUnidade(valor, p.getNomeComponente(), p.getUnidadeMedida(),
+                                                p.getNomeHospital(), p.getParametroMin(), p.getParametroMax(), p.getArea(), p.getNumeroSerie(), timestampStr);
+                                    } catch (Exception je) {}
+                                }
                             }
+
+                            // B) Histórico de ALERTAS
+                            adicionarAoBuffer(bufferClient, String.format("AlertasHistorico/%d/alertasDoAno.csv", ano), dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                            adicionarAoBuffer(bufferClient, String.format("AlertasHistorico/%d/%02d/alertasDo%s.csv", ano, mes, nomeMes), dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                            adicionarAoBuffer(bufferClient, String.format("AlertasHistorico/%d/%02d/Semana%d/alertaDaSemana.csv", ano, mes, semana), dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                            adicionarAoBuffer(bufferClient, String.format("AlertasHistorico/%d/%02d/Semana%d/%02d/alertaDoDia.csv", ano, mes, semana, dia), dadosEnriquecidos, HEADER_ENRIQUECIDO);
+
+                        } else {
+                            // --- É SAUDÁVEL (OK) ---
+
+                            // Histórico de COLETAS OK (Só os bons)
+                            adicionarAoBuffer(bufferClient, String.format("ColetasHistorico/%d/coletaAnual.csv", ano), dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                            adicionarAoBuffer(bufferClient, String.format("ColetasHistorico/%d/%02d/coletaMensal.csv", ano, mes), dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                            adicionarAoBuffer(bufferClient, String.format("ColetasHistorico/%d/%02d/Semana%d/coletaSemanal.csv", ano, mes, semana), dadosEnriquecidos, HEADER_ENRIQUECIDO);
+                            adicionarAoBuffer(bufferClient, String.format("ColetasHistorico/%d/%02d/Semana%d/%02d/coletaDiaria.csv", ano, mes, semana, dia), dadosEnriquecidos, HEADER_ENRIQUECIDO);
                         }
                     }
                 }
             }
         } catch (Exception e) { e.printStackTrace(); }
-        finally {
-            fecharTodosEscritores();
-        }
 
-        // 3. Fase de Sincronização (Iterar Mapas e Enviar)
-        System.out.println("Iniciando sincronização de " + arquivosParaUpload.size() + " arquivos...");
+        deletarArquivo(fInput);
 
-        for (Map.Entry<String, String> entry : arquivosParaUpload.entrySet()) {
-            String s3Key = entry.getKey();     // ex: 2025/coletaAnual.csv
-            String localTemp = entry.getValue(); // ex: /tmp/temp_123.csv
+        // 3. Sincronização Final
 
-            // Define qual bucket usar
-            String targetBucket = s3Key.startsWith("Alertas") ? nomeBucketClient : nomeBucketTrusted;
-
-            if (targetBucket.equals(nomeBucketClient) && s3Key.equals("Alertas/alertaDiario.csv")) {
-                // Arquivo Fixo: Sobrescreve
-                S3UploadArquivo.uploadArquivo(targetBucket, s3Key, localTemp);
-            } else {
-                // Arquivos Históricos: Bola de Neve (Merge)
-                // Se é Alerta ou Trusted define o header para o merge
-                String[] headerCorreto = s3Key.startsWith("Alertas") ? HEADER_ALERTA : HEADER_TRUSTED;
-                mesclarEEnviar(targetBucket, s3Key, localTemp, headerCorreto);
+        // Trusted (Raw)
+        if (nomeBucketTrusted != null) {
+            System.out.println("Sincronizando Trusted...");
+            for (Map.Entry<String, List<String[]>> entry : bufferTrusted.entrySet()) {
+                atualizarArquivoAcumulativo(nomeBucketTrusted, entry.getKey(), entry.getValue(), HEADER_RAW);
             }
         }
+        bufferTrusted.clear();
+
+        // Client (Alertas + ColetasOK + GeralMes)
+        System.out.println("Sincronizando Client...");
+        for (Map.Entry<String, List<String[]>> entry : bufferClient.entrySet()) {
+            if (entry.getKey().equals("Alertas/alertaDiario.csv")) {
+                gerarArquivoSimples(nomeBucketClient, entry.getKey(), entry.getValue(), HEADER_ENRIQUECIDO);
+            } else {
+                atualizarArquivoAcumulativo(nomeBucketClient, entry.getKey(), entry.getValue(), HEADER_ENRIQUECIDO);
+            }
+        }
+        bufferClient.clear();
 
         System.out.println("Processo finalizado.");
     }
 
     // --- MÉTODOS AUXILIARES ---
 
-    private static void adicionarAoBuffer(String bucket, String s3Key, Object[] dados, String[] header) {
-        try {
-            // Chave única do mapa é o s3Key (caminho relativo)
-            // Se a chave não existir no mapa, cria um novo arquivo temporário e abre o escritor
-            if (!printersAbertos.containsKey(s3Key)) {
-                String localPath = TEMP_DIR + "buffer_" + Math.abs(s3Key.hashCode()) + "_" + System.nanoTime() + ".csv";
-                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(localPath), StandardCharsets.UTF_8));
-                CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(header));
+    // Mapas para os buffers
+    private static final Map<String, BufferedWriter> escritoresAbertos = new HashMap<>();
+    private static final Map<String, CSVPrinter> printersAbertos = new HashMap<>();
+    private static final Map<String, String> arquivosParaUpload = new HashMap<>();
 
-                escritoresAbertos.put(s3Key, writer);
-                printersAbertos.put(s3Key, printer);
-                arquivosParaUpload.put(s3Key, localPath);
-            }
-
-            // CORREÇÃO DO ERRO DE CASTING AQUI (Manual Array Copy)
-            // Converte Object[] para String[] manualmente para evitar ClassCastException
-            String[] dadosStr = new String[dados.length];
-            for (int i = 0; i < dados.length; i++) {
-                dadosStr[i] = String.valueOf(dados[i]);
-            }
-
-            printersAbertos.get(s3Key).printRecord((Object[]) dadosStr);
-
-        } catch (IOException e) {
-            System.out.println("Erro ao escrever no buffer: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private static void fecharTodosEscritores() {
-        for (CSVPrinter p : printersAbertos.values()) {
-            try { p.flush(); p.close(); } catch (Exception e) {}
-        }
-        for (BufferedWriter w : escritoresAbertos.values()) {
-            try { w.flush(); w.close(); } catch (Exception e) {}
-        }
-        // Não limpamos 'arquivosParaUpload' aqui pois precisamos iterar sobre ele depois para o upload
-        printersAbertos.clear();
-        escritoresAbertos.clear();
+    private static void adicionarAoBuffer(Map<String, List<String[]>> mapa, String s3Key, Object[] dados, String[] header) {
+        mapa.putIfAbsent(s3Key, new ArrayList<>());
+        String[] dadosStr = new String[dados.length];
+        for (int i = 0; i < dados.length; i++) dadosStr[i] = String.valueOf(dados[i]);
+        mapa.get(s3Key).add(dadosStr);
     }
 
     private static void limparMapas() {
-        arquivosParaUpload.clear();
+        bufferTrusted.clear();
+        bufferClient.clear();
         escritoresAbertos.clear();
         printersAbertos.clear();
+        arquivosParaUpload.clear();
     }
 
-    private static void mesclarEEnviar(String bucket, String key, String arquivoNovoLocal, String[] header) {
-        String arquivoAntigoLocal = TEMP_DIR + "old_" + System.nanoTime() + ".csv";
-        String arquivoFinalLocal = TEMP_DIR + "final_" + System.nanoTime() + ".csv";
+    private static void gerarArquivoSimples(String bucket, String key, List<String[]> dados, String[] header) {
+        String path = TEMP_DIR + "temp_" + System.nanoTime() + ".csv";
+        try (BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(path), StandardCharsets.UTF_8));
+             CSVPrinter p = new CSVPrinter(w, CSVFormat.DEFAULT.withHeader(header))) {
+            for (String[] l : dados) p.printRecord((Object[]) l);
+            p.flush(); w.flush();
+            S3UploadArquivo.uploadArquivo(bucket, key, path);
+        } catch (IOException e) { e.printStackTrace(); }
+        deletarArquivo(new File(path));
+    }
+
+    private static void atualizarArquivoAcumulativo(String bucket, String key, List<String[]> novos, String[] header) {
+        String down = TEMP_DIR + "d_" + System.nanoTime() + ".csv";
+        String up = TEMP_DIR + "u_" + System.nanoTime() + ".csv";
         boolean existeAntigo = false;
         Set<String> chavesUnicas = new HashSet<>();
 
-        boolean isAlerta = (header.length == HEADER_ALERTA.length);
+        // Identifica qual chave usar para deduplicação
+        boolean isEnriquecido = (header.length == HEADER_ENRIQUECIDO.length);
 
-        // 1. Tenta baixar o existente (se não existir, catch captura erro 404 e segue)
         try {
-            S3Download.downloadArquivo(bucket, key, arquivoAntigoLocal);
-            if (new File(arquivoAntigoLocal).exists()) existeAntigo = true;
+            S3Download.downloadArquivo(bucket, key, down);
+            if (new File(down).exists() && new File(down).length() > 0) existeAntigo = true;
         } catch (Exception e) {}
 
-        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(arquivoFinalLocal), StandardCharsets.UTF_8));
+        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(up), StandardCharsets.UTF_8));
              CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(header))) {
 
-            // Copia antigo
             if (existeAntigo) {
-                try (Reader r = new FileReader(arquivoAntigoLocal)) {
+                try (Reader r = new FileReader(down)) {
                     Iterable<CSVRecord> recs = CSVFormat.DEFAULT.withHeader(header).withFirstRecordAsHeader().parse(r);
                     for (CSVRecord rc : recs) {
-                        String k = gerarChaveUnica(rc, isAlerta);
+                        String k = gerarChaveUnica(rc, isEnriquecido);
                         if(chavesUnicas.add(k)) {
                             Object[] vals = new Object[rc.size()];
                             for(int i=0; i<rc.size(); i++) vals[i] = rc.get(i);
@@ -261,33 +258,38 @@ public class ProcessarTrusted {
                 }
             }
 
-            // Copia novo (do arquivo temporário bufferizado)
-            try (Reader r = new FileReader(arquivoNovoLocal)) {
-                Iterable<CSVRecord> recs = CSVFormat.DEFAULT.withHeader(header).withFirstRecordAsHeader().parse(r);
-                for (CSVRecord rc : recs) {
-                    String k = gerarChaveUnica(rc, isAlerta);
-                    if(chavesUnicas.add(k)) {
-                        Object[] vals = new Object[rc.size()];
-                        for(int i=0; i<rc.size(); i++) vals[i] = rc.get(i);
-                        printer.printRecord(vals);
-                    }
+            for (String[] l : novos) {
+                String k;
+                if (isEnriquecido) k = l[0] + "|" + l[2] + "|" + l[4];
+                else k = l[0] + "|" + l[1];
+
+                if (!chavesUnicas.contains(k)) {
+                    printer.printRecord((Object[]) l);
+                    chavesUnicas.add(k);
                 }
             }
-
             printer.flush(); writer.flush();
-            System.out.println("Upload MERGE: " + key);
-            S3UploadArquivo.uploadArquivo(bucket, key, arquivoFinalLocal);
+            S3UploadArquivo.uploadArquivo(bucket, key, up);
 
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (IOException e) { e.printStackTrace(); }
+
+        deletarArquivo(new File(down));
+        deletarArquivo(new File(up));
     }
 
-    private static String gerarChaveUnica(CSVRecord rc, boolean isAlerta) {
-        if (isAlerta) return rc.get(0) + "|" + rc.get(2) + "|" + rc.get(4); // Time|Serie|Comp
-        else return rc.get(0) + "|" + rc.get(1); // Time|ID
+    private static String gerarChaveUnica(CSVRecord rc, boolean isEnriquecido) {
+        if (isEnriquecido) return rc.get(0) + "|" + rc.get(2) + "|" + rc.get(4);
+        else return rc.get(0) + "|" + rc.get(1);
     }
+
+    private static void deletarArquivo(File f) {
+        if (f != null && f.exists()) f.delete();
+    }
+
+    // Fecha recursos do Java (não usado nessa versão de buffer em memória, mas mantido por segurança)
+    private static void fecharTodosEscritores() {}
 
     public static void processarTrustedConsumoMensal(String bucketT, String bucketC) {}
-
     private static Double converterDouble(String v) { try { return Double.valueOf(v.trim()); } catch (Exception e) { return 0.0; } }
     private static Integer converterInt(String v) { try { return Integer.valueOf(v.trim()); } catch (Exception e) { return 0; } }
 }
